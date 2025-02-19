@@ -1,36 +1,128 @@
 package dat102_oblig2_2.oppg2;
 
-import org.junit.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Assertions;
 
-import static org.junit.Assert.*;
+import java.util.Random;
 
 public class Oppgave2ATest {
 
-    @Test
-    public void testInsertionSort() {
-        Integer[] arr = {3, 1, 4, 1, 5};
-        Oppgave2A.insertionSort(arr);
-        assertArrayEquals(new Integer[]{1, 1, 3, 4, 5}, arr);
+    private Integer[] generateRandomArray(int size) {
+        Random random = new Random();
+        Integer[] array = new Integer[size];
+        for (int i = 0; i < size; i++) {
+            array[i] = random.nextInt(100000); // Tall mellom 0 og 99999
+        }
+        return array;
     }
 
-    @Test
-    public void testSelectionSort() {
-        Integer[] arr = {5, 3, 6, 2, 10};
-        Oppgave2A.selectionSort(arr);
-        assertArrayEquals(new Integer[]{2, 3, 5, 6, 10}, arr);
+    private double measureTime(Runnable sortFunction, Integer[] array) {
+        long startTime = System.nanoTime();
+        sortFunction.run();
+        long endTime = System.nanoTime();
+        return (endTime - startTime) / 1_000_000.0; // Konverterer til millisekunder
     }
 
-    @Test
-    public void testQuickSort() {
-        Integer[] arr = {9, 3, 5, 1, 4};
-        Oppgave2A.quickSort(arr);
-        assertArrayEquals(new Integer[]{1, 3, 4, 5, 9}, arr);
+    private double calculateTheoreticalTime(double c, int n, String complexity) {
+        if ("n^2".equals(complexity)) {
+            return c * Math.pow(n, 2);
+        } else if ("n*log(n)".equals(complexity)) {
+            return c * n * Math.log(n) / Math.log(2); // log₂(n)
+        }
+        return 0;
     }
 
-    @Test
-    public void testMergeSort() {
-        Integer[] arr = {8, 4, 2, 7, 1};
-        Oppgave2A.mergeSort(arr);
-        assertArrayEquals(new Integer[]{1, 2, 4, 7, 8}, arr);
+    @ParameterizedTest
+    @ValueSource(ints = {32000, 64000, 128000})
+    public void testInsertionSort(int size) {
+        runAndPrintResults("Insertion Sort", size, "n^2", Oppgave2A::insertionSort);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {32000, 64000, 128000})
+    public void testSelectionSort(int size) {
+        runAndPrintResults("Selection Sort", size, "n^2", Oppgave2A::selectionSort);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {32000, 64000, 128000})
+    public void testQuickSort(int size) {
+        runAndPrintResults("Quick Sort", size, "n*log(n)", Oppgave2A::quickSort);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {32000, 64000, 128000})
+    public void testMergeSort(int size) {
+        runAndPrintResults("Merge Sort", size, "n*log(n)", Oppgave2A::mergeSort);
+    }
+
+    private void runAndPrintResults(String algorithmName, int size, String complexity, SortFunction sortFunction) {
+        int repetitions = 10; // Antall repetisjoner for å få en gjennomsnittlig tid
+        double measuredTimeSum = 0;
+
+        // Første kjøring for å bestemme c-verdien
+        Integer[] testArray = generateRandomArray(size);
+        double c = determineConstant(testArray, sortFunction, complexity);
+
+        // Kjører sorteringsalgoritmen flere ganger og summérer tiden
+        for (int i = 0; i < repetitions; i++) {
+            Integer[] arrayCopy = generateRandomArray(size);
+            measuredTimeSum += measureTime(() -> sortFunction.sort(arrayCopy), arrayCopy);
+
+            // Verifiserer at tabellen er sortert
+            Assertions.assertTrue(isSorted(arrayCopy));
+        }
+
+        // Beregner gjennomsnittlig tid
+        double averageMeasuredTime = measuredTimeSum / repetitions;
+
+        // Beregner teoretisk tid
+        double theoreticalTime = calculateTheoreticalTime(c, size, complexity);
+
+        // Skriver ut resultatet i tabellformat
+        if (size == 32000) {
+            printHeader(algorithmName);
+        }
+        printRow(size, repetitions, averageMeasuredTime, theoreticalTime);
+
+        if (size == 128000) {
+            System.out.println(); // Tom linje mellom algoritmer
+        }
+    }
+
+    private double determineConstant(Integer[] array, SortFunction sortFunction, String complexity) {
+        double measuredTime = measureTime(() -> sortFunction.sort(array), array);
+        int n = array.length;
+        if ("n^2".equals(complexity)) {
+            return measuredTime / Math.pow(n, 2);
+        } else if ("n*log(n)".equals(complexity)) {
+            return measuredTime / (n * Math.log(n) / Math.log(2)); // log₂(n)
+        }
+        return 0;
+    }
+
+    private boolean isSorted(Integer[] array) {
+        for (int i = 0; i < array.length - 1; i++) {
+            if (array[i] > array[i + 1]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void printHeader(String algorithmName) {
+        System.out.println("Resultat " + algorithmName + ":");
+        System.out.println("| N        | Antall målinger | Målt tid (gjennomsnitt, ms) | Teoretisk tid (c*f(n), ms) |");
+        System.out.println("|----------|-----------------|-----------------------------|----------------------------|");
+    }
+
+    private void printRow(int size, int repetitions, double averageMeasuredTime, double theoreticalTime) {
+        System.out.printf("| %-8d | %-15d | %-27.2f | %-26.2f |\n", size, repetitions, averageMeasuredTime, theoreticalTime);
+    }
+
+    @FunctionalInterface
+    interface SortFunction {
+        void sort(Integer[] array);
     }
 }
